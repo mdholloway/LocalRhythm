@@ -63,7 +63,7 @@ public class SpotifyPlayerActivity extends Activity
     private String trackUri;
     private String location;
     private String locationUrlFormat;
-    private String accessToken;
+    private String accessToken = "";
     private String uid;
     private Uri uri;
 
@@ -140,14 +140,15 @@ public class SpotifyPlayerActivity extends Activity
 
         while (!refreshTokenCheckComplete);
 
-        if (accessToken.equals("nil")) {  // no valid refresh token, user must authorize
+        if (accessToken.equals("nil") || accessToken.equals("")) {  // no valid refresh token, user must authorize
             haveRefreshToken = false;
             uri = Uri.parse(authUrl);
             Intent launchAuthWindow = new Intent("android.intent.action.VIEW", uri);
             this.startActivity(launchAuthWindow);
-        } else
+        } else {
             haveRefreshToken = true;
             getPlayer(accessToken);
+        }
     }
 
     private void checkRefreshToken(){
