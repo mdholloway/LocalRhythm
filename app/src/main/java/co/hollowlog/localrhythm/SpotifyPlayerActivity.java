@@ -1,7 +1,7 @@
 package co.hollowlog.localrhythm;
 
 /**
- * Created by michaeldavidholloway on 12/8/14.
+ * © 2014 michael david holloway
  */
 import android.app.Activity;
 import android.content.Intent;
