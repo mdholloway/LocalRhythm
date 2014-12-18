@@ -6,7 +6,7 @@ import android.content.Intent;
 import android.location.LocationManager;
 
 /**
- * Created by michaeldavidholloway on 12/9/14.
+ * © 2014 michael david holloway
  */
 public class LocationAgent {
 

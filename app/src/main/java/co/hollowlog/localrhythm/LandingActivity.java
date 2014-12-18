@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Created by michaeldavidholloway on 12/13/14.
+ * © 2014 michael david holloway
  */
 public class LandingActivity extends Activity {
 

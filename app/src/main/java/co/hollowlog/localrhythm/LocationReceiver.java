@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Created by michaeldavidholloway on 12/8/14.
+ * © 2014 michael david holloway
  */
 public class LocationReceiver extends BroadcastReceiver {
 
