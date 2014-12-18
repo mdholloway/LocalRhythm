@@ -65,6 +65,7 @@ public class SpotifyPlayerActivity extends Activity
     private String locationUrlFormat;
     private String accessToken = "";
     private String uid;
+    private String deleteResult;
     private Uri uri;
 
     public volatile boolean parsingComplete = false;
@@ -153,27 +154,26 @@ public class SpotifyPlayerActivity extends Activity
 
     private void checkRefreshToken(){
 
-        final String refreshTokenUrl = "http://hollowlog.co/refresh_token?uid=" + uid;
-
         Thread refreshTokenThread = new Thread(new Runnable() {
             @Override
             public void run() {
+            try {
+                HttpGet refreshTokenGet = new HttpGet("http://hollowlog.co/refresh_token?uid="
+                      + uid);
+                DefaultHttpClient client = new DefaultHttpClient();
+                HttpResponse response = client.execute(refreshTokenGet);
+                HttpEntity e = response.getEntity();
                 try {
-                    HttpGet refreshTokenGet = new HttpGet("http://hollowlog.co/refresh_token?uid="
-                            + uid);
-                    DefaultHttpClient client = new DefaultHttpClient();
-                    HttpResponse response = client.execute(refreshTokenGet);
-                    HttpEntity e = response.getEntity();
-                    try {
-                        accessToken = EntityUtils.toString(e);
-                    } catch (Exception z){
-                        Toast.makeText(SpotifyPlayerActivity.this, "Server error...",
-                                Toast.LENGTH_LONG).show();
-                    }
-                    refreshTokenCheckComplete = true;
-                } catch (Exception e) {
-                    e.printStackTrace();
+                    accessToken = EntityUtils.toString(e);
+                    Log.d("Auth", "value of accessToken: " + accessToken);
+                } catch (Exception z){
+                    Toast.makeText(SpotifyPlayerActivity.this, "Server error...",
+                           Toast.LENGTH_LONG).show();
                 }
+                refreshTokenCheckComplete = true;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             }
         });
         refreshTokenThread.start();
@@ -191,17 +191,17 @@ public class SpotifyPlayerActivity extends Activity
             Thread callbackThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    try {
-                        HttpGet tokenGet = new HttpGet("http://hollowlog.co/callback?uid="
-                                + uid + "&code=" + authCode);
-                        DefaultHttpClient client = new DefaultHttpClient();
-                        HttpResponse response = client.execute(tokenGet);
-                        HttpEntity e = response.getEntity();
-                        accessToken = EntityUtils.toString(e);
-                        callbackComplete = true;
-                    } catch (Exception e){
-                        e.printStackTrace();
-                    }
+                try {
+                    HttpGet tokenGet = new HttpGet("http://hollowlog.co/callback?uid="
+                            + uid + "&code=" + authCode);
+                    DefaultHttpClient client = new DefaultHttpClient();
+                    HttpResponse response = client.execute(tokenGet);
+                    HttpEntity e = response.getEntity();
+                    accessToken = EntityUtils.toString(e);
+                    callbackComplete = true;
+                } catch (Exception e){
+                    e.printStackTrace();
+                }
                 }
             });
             callbackThread.start();
@@ -230,6 +230,29 @@ public class SpotifyPlayerActivity extends Activity
             public void onError(Throwable throwable) {
                 Log.e("SpotifyPlayerActivity", "Could not initialize player: "
                         + throwable.getMessage());
+
+                Thread deleteThread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            HttpGet deleteGet = new HttpGet("http://hollowlog.co/delete?uid=" + uid);
+                            DefaultHttpClient deleteClient = new DefaultHttpClient();
+                            HttpResponse deleteResponse = deleteClient.execute(deleteGet);
+                            HttpEntity de = deleteResponse.getEntity();
+                            try {
+                                deleteResult = EntityUtils.toString(de);
+                                if (deleteResult == "OK")
+                                    Log.d("Auth", "Old refresh token deleted; getting new tokens.");
+                            } catch (Exception ze){
+                                ze.printStackTrace();
+                            }
+                        } catch (Exception xe) {
+                            xe.printStackTrace();
+                        }
+                    }
+                });
+                deleteThread.start();
+
                 uri = Uri.parse(authUrl);
                 Intent launchAuthWindow = new Intent("android.intent.action.VIEW", uri);
                 SpotifyPlayerActivity.this.startActivity(launchAuthWindow);
