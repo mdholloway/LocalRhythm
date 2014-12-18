@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:orientation="vertical"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent" >
+
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="40dp"
+        android:gravity="center_horizontal"
+        android:textSize="48sp"
+        android:textStyle="bold"
+        android:text="@string/app_name"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center_horizontal"
+        android:textSize="24sp"
+        android:text="@string/app_desc1"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:gravity="center_horizontal"
+        android:textSize="24sp"
+        android:text="@string/app_desc2"/>
+
+    <ImageButton
+        android:layout_width="196dp"
+        android:layout_height="144dp"
+        android:layout_margin="24dp"
+        android:layout_gravity="center_horizontal"
+        android:background="@drawable/unisphere" />
+    
+    <ImageView
+        android:layout_width="140dp"
+        android:layout_height="33dp"
+        android:layout_margin="12dp"
+        android:layout_gravity="center_horizontal"
+        android:contentDescription="@string/echonestlogo"
+        android:src="@drawable/echonest14033" />
+
+    <ImageView
+        android:layout_width="140dp"
+        android:layout_height="33dp"
+        android:layout_margin="12dp"
+        android:layout_gravity="center_horizontal"
+        android:contentDescription="@string/echonestlogo"
+        android:src="@drawable/spotifylogo2013trans" />
+
+</LinearLayout>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">LocalRhythm</string>
+    <string name="app_desc1">Location-based</string>
+    <string name="app_desc2">streaming music player</string>
+    <string name="echonestlogo">Echo Nest logo</string>
+    <string name="log_in_to_spotify">Log into Spotify</string>
+
+</resources>
