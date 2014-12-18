@@ -4,11 +4,13 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.widget.Toast;
 
 import java.io.IOException;
@@ -29,6 +31,7 @@ public class LandingActivity extends Activity {
     public String mStreetAddress;
     public String mCityStateZip;
     public String mCityName;
+    public String mStateName;
 
     private LocationReceiver mLocationReceiver = new LocationReceiver(this) {
 
@@ -50,13 +53,15 @@ public class LandingActivity extends Activity {
                     mStreetAddress = mAddresses.get(0).getAddressLine(0);
                     mCityStateZip = mAddresses.get(0).getAddressLine(1);
                     mCityName = mCityStateZip.split(",")[0];
+                    mStateName = mCityStateZip.split(",")[0];
 
                     Toast.makeText(context, "Found location: " + mStreetAddress + ", "
                            + mCityStateZip, Toast.LENGTH_SHORT).show();
 
                     Intent launchPlayer = new Intent(LandingActivity.this,
                             SpotifyPlayerActivity.class);
-                    launchPlayer.putExtra("location", mCityName);
+                    launchPlayer.putExtra("city", mCityName);
+                    launchPlayer.putExtra("state", mStateName);
                     startActivity(launchPlayer);
                     finish();
                 } else
@@ -73,6 +78,16 @@ public class LandingActivity extends Activity {
 
         mLocationAgent = LocationAgent.get(this);
         mLocationAgent.startLocationUpdates();
+
+        final ProgressWheel wheel = (ProgressWheel) findViewById(R.id.progress_wheel);
+
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                wheel.spin();
+            }
+        }, 2000);
+
     }
 
     @Override

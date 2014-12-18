@@ -5,12 +5,16 @@ package co.hollowlog.localrhythm;
  */
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
@@ -51,18 +55,23 @@ public class SpotifyPlayerActivity extends Activity
     private TextView mArtistField;
     private TextView mTrackField;
     private TextView mLocationField;
+    private ImageView mImageView;
 
+    private Bitmap imgDisplayBmp;
     private boolean paused = false;
     private boolean playing = false;
     private boolean flushComplete = false;
     private boolean pauseEventComplete = false;
     private boolean haveRefreshToken;
+    private ProgressWheel wheel;
     private String artistName;
     private String artistSpotifyId;
     private String trackName;
     private String trackUri;
-    private String location;
-    private String locationUrlFormat;
+    private String city;
+    private String cityUrlFormat;
+    private String state;
+    private String stateUrlFormat;
     private String accessToken = "";
     private String uid;
     private String deleteResult;
@@ -78,15 +87,19 @@ public class SpotifyPlayerActivity extends Activity
         setContentView(R.layout.activity_player);
 
         uid = Settings.Secure.getString(this.getContentResolver(), Settings.Secure.ANDROID_ID);
-        location = getIntent().getStringExtra("location");
-        locationUrlFormat = location.replace(" ", "%20");
+        city = getIntent().getStringExtra("city");
+        state = getIntent().getStringExtra("state");
+        cityUrlFormat = city.replace(" ", "%20");
+        stateUrlFormat = state.replace(" ", "%20");
 
         playPauseButton = (ToggleButton) findViewById(R.id.playPauseButton);
         nextButton = (Button) findViewById(R.id.nextButton);
+        mImageView = (ImageView) findViewById(R.id.album_art);
         mArtistField = (TextView) findViewById(R.id.artist_field);
         mTrackField = (TextView) findViewById(R.id.track_field);
+        wheel = (ProgressWheel) findViewById(R.id.progress_wheel);
         mLocationField = (TextView) findViewById(R.id.location_field);
-        mLocationField.setText(location);
+        mLocationField.setText(city);
 
         playPauseButton.setOnClickListener(new View.OnClickListener(){
             @Override
@@ -102,14 +115,23 @@ public class SpotifyPlayerActivity extends Activity
                     paused = true;
                     mPlayer.pause();
                 } else {
+                    wheel.spin();
                     parsingComplete = false;
-                    getSong(locationUrlFormat);
+                    getSong(cityUrlFormat, "city");
 
                     //pause execution until JSON is parsed & needed values extracted
                     while (!parsingComplete);
 
+                    if (trackUri == null){
+                        parsingComplete = false;
+                        getSong(stateUrlFormat, "state");
+                        while (!parsingComplete);
+                    }
+
                     mArtistField.setText(artistName);
                     mTrackField.setText(trackName);
+                    mImageView.setImageBitmap(imgDisplayBmp);
+                    wheel.stopSpinning();
                     mPlayer.play(trackUri);
                     playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
                     playing = true;
@@ -124,19 +146,26 @@ public class SpotifyPlayerActivity extends Activity
                 flushComplete = false;
                 pauseEventComplete = false;
                 mPlayer.pause();
-                getSong(locationUrlFormat);
+                getSong(cityUrlFormat, "city");
 
                 //with audio flush and pause check to prevent death spiral
                 while ((!parsingComplete) && (!flushComplete) && (!pauseEventComplete));
 
+                if (trackUri == ""){
+                    parsingComplete = false;
+                    getSong(stateUrlFormat, "state");
+                    while (!parsingComplete);
+                }
+
                 mArtistField.setText(artistName);
                 mTrackField.setText(trackName);
+                mImageView.setImageBitmap(imgDisplayBmp);
                 mPlayer.play(trackUri);
                 playing = true;
             }
         });
 
-        Toast.makeText(SpotifyPlayerActivity.this, "Authenticating...", Toast.LENGTH_SHORT).show();
+        wheel.spin();
         checkRefreshToken();
 
         while (!refreshTokenCheckComplete);
@@ -165,7 +194,6 @@ public class SpotifyPlayerActivity extends Activity
                 HttpEntity e = response.getEntity();
                 try {
                     accessToken = EntityUtils.toString(e);
-                    Log.d("Auth", "value of accessToken: " + accessToken);
                 } catch (Exception z){
                     Toast.makeText(SpotifyPlayerActivity.this, "Server error...",
                            Toast.LENGTH_LONG).show();
@@ -222,8 +250,9 @@ public class SpotifyPlayerActivity extends Activity
                 mPlayer.addPlayerNotificationCallback(SpotifyPlayerActivity.this);
                 playPauseButton.setEnabled(true);
                 nextButton.setEnabled(true);
-                Toast.makeText(SpotifyPlayerActivity.this, "Player ready!", Toast.LENGTH_SHORT)
-                        .show();
+                //Toast.makeText(SpotifyPlayerActivity.this, "Player ready!", Toast.LENGTH_SHORT)
+                //        .show();
+                wheel.stopSpinning();
             }
 
             @Override
@@ -263,12 +292,15 @@ public class SpotifyPlayerActivity extends Activity
         });
     }
 
-    private void getSong(String city) {
-        Toast.makeText(SpotifyPlayerActivity.this, "Getting track...", Toast.LENGTH_SHORT).show();
+    private void getSong(String loc, String type) {
+        //Toast.makeText(SpotifyPlayerActivity.this, "Getting track...", Toast.LENGTH_SHORT).show();
+
+        artistSpotifyId = "";
+        trackUri = "";
 
         final String urlBuilder = "http://developer.echonest.com/api/v4/artist/search?api_key="
             + ECHONEST_API_KEY
-                + "&format=json&artist_location=city:" + city + "&bucket=id:spotify&results=20";
+                + "&format=json&artist_location=" + type + ":" + loc + "&bucket=id:spotify&results=20";
 
         Thread thread = new Thread(new Runnable(){
             @Override
@@ -288,52 +320,65 @@ public class SpotifyPlayerActivity extends Activity
                         JSONObject response  = reader.getJSONObject("response");
                         JSONArray artists = response.getJSONArray("artists");
 
-                        //get random artist from array
-                        int idx = new Random().nextInt(artists.length());
-                        JSONObject selectedArtist = (artists.getJSONObject(idx));
-                        artistName = selectedArtist.getString("name");
+                        if (artists.length() > 0) {
+                            //get random artist from array
+                            int idx = new Random().nextInt(artists.length());
+                            JSONObject selectedArtist = (artists.getJSONObject(idx));
+                            artistName = selectedArtist.getString("name");
 
-                        JSONArray foreignIds = selectedArtist.getJSONArray("foreign_ids");
-                        JSONObject foreignId = foreignIds.getJSONObject(0);
-                        String str = foreignId.getString("foreign_id");
-                        artistSpotifyId = str.split(":")[2];
+                            JSONArray foreignIds = selectedArtist.getJSONArray("foreign_ids");
+                            JSONObject foreignId = foreignIds.getJSONObject(0);
+                            String str = foreignId.getString("foreign_id");
+                            artistSpotifyId = str.split(":")[2];
+                        }
 
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                     echoNestStream.close();
 
-                    final String urlBuilder2="https://api.spotify.com/v1/artists/"
-                            + artistSpotifyId + "/top-tracks?country=US";
-                    try {
-                        URL url2 = new URL(urlBuilder2);
-                        HttpURLConnection conn2 = (HttpURLConnection) url2.openConnection();
-                        conn2.setReadTimeout(10000);
-                        conn2.setConnectTimeout(15000);
-                        conn2.setRequestMethod("GET");
-                        conn2.setDoInput(true);
-                        conn2.connect();
-                        InputStream spotifyStream = conn2.getInputStream();
-                        String data2 = convertStreamToString(spotifyStream);
+                    if (artistSpotifyId != "") {
+                        final String urlBuilder2 = "https://api.spotify.com/v1/artists/"
+                                + artistSpotifyId + "/top-tracks?country=US";
                         try {
-                            JSONObject reader = new JSONObject(data2);
-                            JSONArray tracks  = reader.getJSONArray("tracks");
+                            URL url2 = new URL(urlBuilder2);
+                            HttpURLConnection conn2 = (HttpURLConnection) url2.openConnection();
+                            conn2.setReadTimeout(10000);
+                            conn2.setConnectTimeout(15000);
+                            conn2.setRequestMethod("GET");
+                            conn2.setDoInput(true);
+                            conn2.connect();
+                            InputStream spotifyStream = conn2.getInputStream();
+                            String data2 = convertStreamToString(spotifyStream);
+                            try {
+                                JSONObject reader = new JSONObject(data2);
+                                JSONArray tracks = reader.getJSONArray("tracks");
 
-                            //get random track from array
-                            int idx2 = new Random().nextInt(tracks.length());
-                            JSONObject selectedTrack = (tracks.getJSONObject(idx2));
+                                //get random track from array
+                                int idx2 = new Random().nextInt(tracks.length());
+                                JSONObject selectedTrack = (tracks.getJSONObject(idx2));
 
-                            trackName = selectedTrack.getString("name");
-                            trackUri = selectedTrack.getString("uri");
+                                trackName = selectedTrack.getString("name");
+                                trackUri = selectedTrack.getString("uri");
+
+                                JSONObject album = selectedTrack.getJSONObject("album");
+                                JSONArray images = album.getJSONArray("images");
+                                JSONObject bestImage = images.getJSONObject(0);
+                                URL imageUrl = new URL(bestImage.getString("url"));
+                                imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
+                                        getInputStream());
+
+                                //TODO: add "no image available" support
+
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                            spotifyStream.close();
+                            parsingComplete = true;
 
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-                        spotifyStream.close();
-                        parsingComplete = true;
-
-                    } catch (Exception e) {
-                        e.printStackTrace();
                     }
 
                 } catch (Exception e) {
@@ -388,13 +433,20 @@ public class SpotifyPlayerActivity extends Activity
             parsingComplete = false;
             flushComplete = false;
             mPlayer.pause();
-            getSong(locationUrlFormat);
+            getSong(cityUrlFormat, "city");
 
             //with audio flush and pause check to prevent death spiral
             while ((!parsingComplete) && (!flushComplete) && (!pauseEventComplete));
 
+            if (trackUri == null){
+                parsingComplete = false;
+                getSong(stateUrlFormat, "state");
+                while (!parsingComplete);
+            }
+
             mArtistField.setText(artistName);
             mTrackField.setText(trackName);
+            mImageView.setImageBitmap(imgDisplayBmp);
             mPlayer.play(trackUri);
         }
         if (eventType.name().equals("PAUSE"))
