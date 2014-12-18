@@ -1,7 +1,7 @@
 LocalRhythm
 ===========
 
-This is a location-based music player powered by the [Echo Nest](https://developer.echonest.com/) and [Spotify](https://developer.spotify.com/) APIs.
+This is a location-based music discovery app built on the [Spotify Android SDK](https://developer.spotify.com/technologies/spotify-android-sdk/) and powered by the [Echo Nest](https://developer.echonest.com/) and [Spotify](https://developer.spotify.com/) APIs.
 
 The core java files live in /app/src/main/java/co/hollowlog/localrhythm.
 
