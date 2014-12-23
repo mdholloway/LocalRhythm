@@ -12,9 +12,9 @@ public class LocationAgent {
 
     public static final String ACTION_LOCATION = "co.hollowlog.localrhythm.ACTION_LOCATION";
 
-    private static LocationAgent sLocationAgent;
+    protected static LocationAgent sLocationAgent;
     private Context mAppContext;
-    private LocationManager mLocationManager;
+    protected LocationManager mLocationManager;
 
     private LocationAgent(Context appContext){
         mAppContext = appContext;

@@ -3,50 +3,64 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/container"
     android:layout_width="match_parent"
-    android:layout_height="match_parent" >
+    android:layout_height="match_parent"
+    android:gravity="center_horizontal">
+
+    <ImageView
+        android:id="@+id/unisphere"
+        android:layout_width="196dp"
+        android:layout_height="144dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="36dp"
+        android:layout_centerInParent="true"
+        android:src="@drawable/unisphere_transparent" />
 
 <LinearLayout
-              android:orientation="vertical"
-              android:layout_width="match_parent"
-              android:layout_height="match_parent" >
-
+       android:orientation="vertical"
+       android:layout_width="wrap_content"
+       android:layout_height="wrap_content"
+       android:layout_above="@id/unisphere"
+       android:layout_centerHorizontal="true" >
 
     <TextView
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="40dp"
-        android:gravity="center_horizontal"
+        android:layout_marginTop="24dp"
+        android:layout_gravity="center_horizontal"
         android:textSize="48sp"
         android:textStyle="bold"
         android:text="@string/app_name"/>
 
     <TextView
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:gravity="center_horizontal"
+        android:layout_gravity="center_horizontal"
         android:textSize="24sp"
         android:text="@string/app_desc1"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
+        android:layout_marginBottom="8dp"
         android:gravity="center_horizontal"
         android:textSize="24sp"
         android:text="@string/app_desc2"/>
 
-    <ImageButton
-        android:layout_width="196dp"
-        android:layout_height="144dp"
-        android:layout_margin="24dp"
-        android:layout_gravity="center_horizontal"
-        android:background="@drawable/unisphere" />
-    
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/unisphere"
+        android:orientation="vertical"
+        android:layout_centerHorizontal="true">
+
     <ImageView
         android:layout_width="140dp"
         android:layout_height="33dp"
-        android:layout_margin="12dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="12dp"
         android:layout_gravity="center_horizontal"
         android:contentDescription="@string/echonestlogo"
         android:src="@drawable/echonest14033" />
@@ -56,10 +70,10 @@
         android:layout_height="33dp"
         android:layout_margin="12dp"
         android:layout_gravity="center_horizontal"
-        android:contentDescription="@string/echonestlogo"
-        android:src="@drawable/spotifylogo2013trans" />
+        android:contentDescription="@string/spotifylogo"
+        android:src="@drawable/spotifylogo2013transnew" />
 
-</LinearLayout>
+    </LinearLayout>
 
     <co.hollowlog.localrhythm.ProgressWheel
         xmlns:wheel="http://schemas.android.com/apk/res-auto"

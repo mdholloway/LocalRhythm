@@ -1,7 +1,9 @@
 package co.hollowlog.localrhythm;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
@@ -11,6 +13,7 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.Settings;
 import android.widget.Toast;
 
 import java.io.IOException;
@@ -23,7 +26,6 @@ import java.util.Locale;
 public class LandingActivity extends Activity {
 
     private LocationAgent mLocationAgent;
-    private Location mLastLocation;
 
     private List<Address> mAddresses;
     public double mCurrentLat;
@@ -31,7 +33,6 @@ public class LandingActivity extends Activity {
     public String mStreetAddress;
     public String mCityStateZip;
     public String mCityName;
-    public String mStateName;
 
     private LocationReceiver mLocationReceiver = new LocationReceiver(this) {
 
@@ -53,7 +54,6 @@ public class LandingActivity extends Activity {
                     mStreetAddress = mAddresses.get(0).getAddressLine(0);
                     mCityStateZip = mAddresses.get(0).getAddressLine(1);
                     mCityName = mCityStateZip.split(",")[0];
-                    mStateName = mCityStateZip.split(",")[0];
 
                     Toast.makeText(context, "Found location: " + mStreetAddress + ", "
                            + mCityStateZip, Toast.LENGTH_SHORT).show();
@@ -61,7 +61,6 @@ public class LandingActivity extends Activity {
                     Intent launchPlayer = new Intent(LandingActivity.this,
                             SpotifyPlayerActivity.class);
                     launchPlayer.putExtra("city", mCityName);
-                    launchPlayer.putExtra("state", mStateName);
                     startActivity(launchPlayer);
                     finish();
                 } else
@@ -75,8 +74,51 @@ public class LandingActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_landing);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        boolean gps_enabled = false, network_enabled = false;
 
         mLocationAgent = LocationAgent.get(this);
+
+        try{
+            gps_enabled = LocationAgent.sLocationAgent.mLocationManager
+                    .isProviderEnabled(LocationManager.GPS_PROVIDER);
+        }catch(Exception ex){}
+
+        try{
+            network_enabled = LocationAgent.sLocationAgent.mLocationManager
+                    .isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        }catch(Exception ex){}
+
+        if(!gps_enabled && !network_enabled){
+            AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+            dialog.setMessage("LocalRhythm requires access to your location. " +
+                    "Open settings now to enable?");
+            dialog.setPositiveButton("Open",
+                    new DialogInterface.OnClickListener() {
+
+                        @Override
+                        public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                            Intent myIntent = new Intent(Settings.ACTION_SETTINGS);
+                            startActivity(myIntent);
+                        }
+                    });
+            dialog.setNegativeButton("Cancel",
+                    new DialogInterface.OnClickListener() {
+
+                        @Override
+                        public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                            finish();
+                        }
+                    });
+            dialog.show();
+
+        }
+
         mLocationAgent.startLocationUpdates();
 
         final ProgressWheel wheel = (ProgressWheel) findViewById(R.id.progress_wheel);
@@ -88,19 +130,19 @@ public class LandingActivity extends Activity {
             }
         }, 2000);
 
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
         this.registerReceiver(mLocationReceiver, new IntentFilter(LocationAgent.ACTION_LOCATION));
     }
 
     @Override
     protected void onStop() {
+        super.onStop();
         mLocationAgent.stopLocationUpdates();
         this.unregisterReceiver(mLocationReceiver);
-        super.onStop();
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mLocationAgent.startLocationUpdates();
+    }
 }

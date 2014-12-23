@@ -4,10 +4,11 @@ package co.hollowlog.localrhythm;
  * © 2014 michael david holloway
  */
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Color;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -26,18 +27,19 @@ import com.spotify.sdk.android.playback.Player;
 import com.spotify.sdk.android.playback.PlayerNotificationCallback;
 import com.spotify.sdk.android.playback.PlayerState;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.util.EntityUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 import java.util.Random;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 public class SpotifyPlayerActivity extends Activity
         implements PlayerNotificationCallback, ConnectionStateCallback {
@@ -45,6 +47,7 @@ public class SpotifyPlayerActivity extends Activity
     private static final String ECHONEST_API_KEY = "MY-API-KEY";
     private static final String SPOTIFY_CLIENT_ID = "MY-CLIENT-ID";
     private static final String authUrl = "MY-AUTH-URL";
+
 
     private Player mPlayer;
     private Config playerConfig;
@@ -56,26 +59,33 @@ public class SpotifyPlayerActivity extends Activity
     private TextView mTrackField;
     private TextView mLocationField;
     private ImageView mImageView;
+    private ImageView artistInfoButton;
+    private static SSLSocketFactory hollowlogFactory;
+    private JSONArray artists;
+    private AudioManager am;
+    private AudioManager.OnAudioFocusChangeListener afChangeListener;
 
     private Bitmap imgDisplayBmp;
     private boolean paused = false;
     private boolean playing = false;
     private boolean flushComplete = false;
     private boolean pauseEventComplete = false;
-    private boolean haveRefreshToken;
+    private boolean haveRefreshToken = false;
+    private boolean haveSong = false;
+    private boolean noArtistsFound = false;
     private ProgressWheel wheel;
     private String artistName;
-    private String artistSpotifyId;
+    private String artistNameUrlFormat;
+    private String artistSpotifyId = "";
     private String trackName;
-    private String trackUri;
+    private String trackUri = "";
     private String city;
     private String cityUrlFormat;
-    private String state;
-    private String stateUrlFormat;
     private String accessToken = "";
     private String uid;
     private String deleteResult;
     private Uri uri;
+    private Uri artistInfoUri;
 
     public volatile boolean parsingComplete = false;
     public volatile boolean refreshTokenCheckComplete = false;
@@ -88,9 +98,7 @@ public class SpotifyPlayerActivity extends Activity
 
         uid = Settings.Secure.getString(this.getContentResolver(), Settings.Secure.ANDROID_ID);
         city = getIntent().getStringExtra("city");
-        state = getIntent().getStringExtra("state");
         cityUrlFormat = city.replace(" ", "%20");
-        stateUrlFormat = state.replace(" ", "%20");
 
         playPauseButton = (ToggleButton) findViewById(R.id.playPauseButton);
         nextButton = (Button) findViewById(R.id.nextButton);
@@ -98,12 +106,15 @@ public class SpotifyPlayerActivity extends Activity
         mArtistField = (TextView) findViewById(R.id.artist_field);
         mTrackField = (TextView) findViewById(R.id.track_field);
         wheel = (ProgressWheel) findViewById(R.id.progress_wheel);
+        artistInfoButton = (ImageView) findViewById(R.id.artist_info);
         mLocationField = (TextView) findViewById(R.id.location_field);
         mLocationField.setText(city);
 
+        wheel.spin();
+
         playPauseButton.setOnClickListener(new View.OnClickListener(){
             @Override
-            public void onClick(View v){
+            public void onClick(View v) {
                 if (paused) {
                     playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
                     paused = false;
@@ -117,24 +128,34 @@ public class SpotifyPlayerActivity extends Activity
                 } else {
                     wheel.spin();
                     parsingComplete = false;
-                    getSong(cityUrlFormat, "city");
+                    getSong(cityUrlFormat);
 
                     //pause execution until JSON is parsed & needed values extracted
-                    while (!parsingComplete);
+                    while (!parsingComplete) ;
 
-                    if (trackUri == null){
-                        parsingComplete = false;
-                        getSong(stateUrlFormat, "state");
-                        while (!parsingComplete);
+                    if (noArtistsFound)
+                        Toast.makeText(SpotifyPlayerActivity.this, "No artists found!",
+                                Toast.LENGTH_SHORT).show();
+                    else {
+                        mArtistField.setText(artistName);
+                        mTrackField.setText(trackName);
+                        mImageView.setImageBitmap(imgDisplayBmp);
+                        wheel.stopSpinning();
+                        mPlayer.play(trackUri);
+                        playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
+
+                        artistInfoButton.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                Intent artistBrowser = new Intent("android.intent.action.VIEW",
+                                        artistInfoUri);
+                                SpotifyPlayerActivity.this.startActivity(artistBrowser);
+                            }
+                        });
+                        artistInfoButton.setEnabled(true);
+
+                        playing = true;
                     }
-
-                    mArtistField.setText(artistName);
-                    mTrackField.setText(trackName);
-                    mImageView.setImageBitmap(imgDisplayBmp);
-                    wheel.stopSpinning();
-                    mPlayer.play(trackUri);
-                    playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
-                    playing = true;
                 }
             }
         });
@@ -146,26 +167,53 @@ public class SpotifyPlayerActivity extends Activity
                 flushComplete = false;
                 pauseEventComplete = false;
                 mPlayer.pause();
-                getSong(cityUrlFormat, "city");
+                wheel.spin();
+                getSong(cityUrlFormat);
 
                 //with audio flush and pause check to prevent death spiral
                 while ((!parsingComplete) && (!flushComplete) && (!pauseEventComplete));
 
-                if (trackUri == ""){
+                do {
                     parsingComplete = false;
-                    getSong(stateUrlFormat, "state");
+                    getSong(cityUrlFormat);
                     while (!parsingComplete);
-                }
+                } while (!haveSong);
 
                 mArtistField.setText(artistName);
                 mTrackField.setText(trackName);
                 mImageView.setImageBitmap(imgDisplayBmp);
+                wheel.stopSpinning();
                 mPlayer.play(trackUri);
                 playing = true;
             }
         });
 
-        wheel.spin();
+         afChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+            public void onAudioFocusChange(int focusChange) {
+                if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                    mPlayer.pause();
+                } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                    mPlayer.resume();
+                }
+            }
+        };
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        refreshTokenCheckComplete = false;
+        haveRefreshToken = false;
+
+        am = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
+        am.requestAudioFocus(afChangeListener,
+                // Use the music stream.
+                AudioManager.STREAM_MUSIC,
+                // Request permanent focus.
+                AudioManager.AUDIOFOCUS_GAIN);
+
+        trustHollowLog();
         checkRefreshToken();
 
         while (!refreshTokenCheckComplete);
@@ -179,6 +227,7 @@ public class SpotifyPlayerActivity extends Activity
             haveRefreshToken = true;
             getPlayer(accessToken);
         }
+
     }
 
     private void checkRefreshToken(){
@@ -187,17 +236,11 @@ public class SpotifyPlayerActivity extends Activity
             @Override
             public void run() {
             try {
-                HttpGet refreshTokenGet = new HttpGet("http://hollowlog.co/refresh_token?uid="
-                      + uid);
-                DefaultHttpClient client = new DefaultHttpClient();
-                HttpResponse response = client.execute(refreshTokenGet);
-                HttpEntity e = response.getEntity();
-                try {
-                    accessToken = EntityUtils.toString(e);
-                } catch (Exception z){
-                    Toast.makeText(SpotifyPlayerActivity.this, "Server error...",
-                           Toast.LENGTH_LONG).show();
-                }
+                URLConnection refreshConnection = new URL("https://hollowlog.co:8443/refresh_token?uid="
+                        + uid).openConnection();
+                ((HttpsURLConnection) refreshConnection).setSSLSocketFactory(hollowlogFactory);
+                InputStream ips = refreshConnection.getInputStream();
+                accessToken = convertStreamToString(ips);
                 refreshTokenCheckComplete = true;
             } catch (Exception e) {
                 e.printStackTrace();
@@ -211,21 +254,18 @@ public class SpotifyPlayerActivity extends Activity
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         final Uri authResponse = intent.getData();
-        if (haveRefreshToken){
-            accessToken = authResponse.getQueryParameter("access_token");
-        } else {
+        if (!haveRefreshToken) {
             final String authCode = authResponse.getQueryParameter("code");
-            // send authorization code to http://hollowlog.co/callback for access token
+            // send authorization code to hollowlog.co/callback for access token
             Thread callbackThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                 try {
-                    HttpGet tokenGet = new HttpGet("http://hollowlog.co/callback?uid="
-                            + uid + "&code=" + authCode);
-                    DefaultHttpClient client = new DefaultHttpClient();
-                    HttpResponse response = client.execute(tokenGet);
-                    HttpEntity e = response.getEntity();
-                    accessToken = EntityUtils.toString(e);
+                    URLConnection callbackConnection = new URL("https://hollowlog.co:8443/callback?uid="
+                            + uid + "&code=" + authCode).openConnection();
+                    ((HttpsURLConnection) callbackConnection).setSSLSocketFactory(hollowlogFactory);
+                    InputStream ips = callbackConnection.getInputStream();
+                    accessToken = convertStreamToString(ips);
                     callbackComplete = true;
                 } catch (Exception e){
                     e.printStackTrace();
@@ -250,8 +290,6 @@ public class SpotifyPlayerActivity extends Activity
                 mPlayer.addPlayerNotificationCallback(SpotifyPlayerActivity.this);
                 playPauseButton.setEnabled(true);
                 nextButton.setEnabled(true);
-                //Toast.makeText(SpotifyPlayerActivity.this, "Player ready!", Toast.LENGTH_SHORT)
-                //        .show();
                 wheel.stopSpinning();
             }
 
@@ -264,17 +302,13 @@ public class SpotifyPlayerActivity extends Activity
                     @Override
                     public void run() {
                         try {
-                            HttpGet deleteGet = new HttpGet("http://hollowlog.co/delete?uid=" + uid);
-                            DefaultHttpClient deleteClient = new DefaultHttpClient();
-                            HttpResponse deleteResponse = deleteClient.execute(deleteGet);
-                            HttpEntity de = deleteResponse.getEntity();
-                            try {
-                                deleteResult = EntityUtils.toString(de);
-                                if (deleteResult == "OK")
-                                    Log.d("Auth", "Old refresh token deleted; getting new tokens.");
-                            } catch (Exception ze){
-                                ze.printStackTrace();
-                            }
+                            URLConnection deleteConnection = new URL
+                                    ("https://hollowlog.co:8443/delete?uid=" + uid).openConnection();
+                            ((HttpsURLConnection)deleteConnection).setSSLSocketFactory(hollowlogFactory);
+                            InputStream dels = deleteConnection.getInputStream();
+                            deleteResult = convertStreamToString(dels);
+                            if (deleteResult == "OK")
+                                Log.d("Auth", "Old refresh token deleted; getting new tokens.");
                         } catch (Exception xe) {
                             xe.printStackTrace();
                         }
@@ -292,25 +326,23 @@ public class SpotifyPlayerActivity extends Activity
         });
     }
 
-    private void getSong(String loc, String type) {
-        //Toast.makeText(SpotifyPlayerActivity.this, "Getting track...", Toast.LENGTH_SHORT).show();
+    private void getSong(String loc) {
 
         artistSpotifyId = "";
         trackUri = "";
 
-        final String urlBuilder = "http://developer.echonest.com/api/v4/artist/search?api_key="
+        final String urlBuilder = "https://developer.echonest.com/api/v4/artist/search?api_key="
             + ECHONEST_API_KEY
-                + "&format=json&artist_location=" + type + ":" + loc + "&bucket=id:spotify&results=20";
+                + "&format=json&artist_location=city:" + loc + "&bucket=id:spotify&results=40";
 
         Thread thread = new Thread(new Runnable(){
             @Override
             public void run() {
                 try {
                     URL url = new URL(urlBuilder);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    URLConnection conn = url.openConnection();
                     conn.setReadTimeout(10000);
                     conn.setConnectTimeout(15000);
-                    conn.setRequestMethod("GET");
                     conn.setDoInput(true);
                     conn.connect();
                     InputStream echoNestStream = conn.getInputStream();
@@ -318,34 +350,37 @@ public class SpotifyPlayerActivity extends Activity
                     try {
                         JSONObject reader = new JSONObject(data);
                         JSONObject response  = reader.getJSONObject("response");
-                        JSONArray artists = response.getJSONArray("artists");
+                        artists = response.getJSONArray("artists");
 
                         if (artists.length() > 0) {
                             //get random artist from array
                             int idx = new Random().nextInt(artists.length());
                             JSONObject selectedArtist = (artists.getJSONObject(idx));
                             artistName = selectedArtist.getString("name");
+                            artistNameUrlFormat = artistName.replace(" ", "%20");
 
                             JSONArray foreignIds = selectedArtist.getJSONArray("foreign_ids");
                             JSONObject foreignId = foreignIds.getJSONObject(0);
                             String str = foreignId.getString("foreign_id");
                             artistSpotifyId = str.split(":")[2];
-                        }
+                            artistInfoUri = Uri.parse("https://en.wikipedia.org/wiki/" +
+                                    artistNameUrlFormat);
+                        } else
+                            noArtistsFound = true;
 
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
                     echoNestStream.close();
 
-                    if (artistSpotifyId != "") {
+                    if (artists.length() > 0) {
                         final String urlBuilder2 = "https://api.spotify.com/v1/artists/"
                                 + artistSpotifyId + "/top-tracks?country=US";
                         try {
                             URL url2 = new URL(urlBuilder2);
-                            HttpURLConnection conn2 = (HttpURLConnection) url2.openConnection();
+                            URLConnection conn2 = url2.openConnection();
                             conn2.setReadTimeout(10000);
                             conn2.setConnectTimeout(15000);
-                            conn2.setRequestMethod("GET");
                             conn2.setDoInput(true);
                             conn2.connect();
                             InputStream spotifyStream = conn2.getInputStream();
@@ -355,27 +390,26 @@ public class SpotifyPlayerActivity extends Activity
                                 JSONArray tracks = reader.getJSONArray("tracks");
 
                                 //get random track from array
-                                int idx2 = new Random().nextInt(tracks.length());
-                                JSONObject selectedTrack = (tracks.getJSONObject(idx2));
+                                if (tracks.length() > 0) {
+                                    int idx2 = new Random().nextInt(tracks.length());
+                                    JSONObject selectedTrack = (tracks.getJSONObject(idx2));
 
-                                trackName = selectedTrack.getString("name");
-                                trackUri = selectedTrack.getString("uri");
+                                    trackName = selectedTrack.getString("name");
+                                    trackUri = selectedTrack.getString("uri");
 
-                                JSONObject album = selectedTrack.getJSONObject("album");
-                                JSONArray images = album.getJSONArray("images");
-                                JSONObject bestImage = images.getJSONObject(0);
-                                URL imageUrl = new URL(bestImage.getString("url"));
-                                imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
-                                        getInputStream());
-
-                                //TODO: add "no image available" support
+                                    JSONObject album = selectedTrack.getJSONObject("album");
+                                    JSONArray images = album.getJSONArray("images");
+                                    JSONObject bestImage = images.getJSONObject(0);
+                                    URL imageUrl = new URL(bestImage.getString("url"));
+                                    imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
+                                            getInputStream());
+                                    haveSong = true;
+                                }
 
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
                             spotifyStream.close();
-                            parsingComplete = true;
-
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -384,6 +418,7 @@ public class SpotifyPlayerActivity extends Activity
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+                parsingComplete = true;
             }
         });
         thread.start();
@@ -393,6 +428,33 @@ public class SpotifyPlayerActivity extends Activity
         java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
         return s.hasNext() ? s.next() : "";
     }
+
+    public static void trustHollowLog() {
+        // Don't throw certificate chain validation exceptions for my own site with unrecognized issuing CA (Gandi.net)
+        TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
+            @Override
+            public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
+                           String authType) throws java.security.cert.CertificateException {}
+
+            @Override
+            public void checkServerTrusted(java.security.cert.X509Certificate[] chain,
+                           String authType) throws java.security.cert.CertificateException {}
+
+            public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                return new java.security.cert.X509Certificate[]{};
+            }
+        }};
+
+        try {
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
+            hollowlogFactory = sc.getSocketFactory();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
 
     @Override
     public void onLoggedIn() {
@@ -433,16 +495,10 @@ public class SpotifyPlayerActivity extends Activity
             parsingComplete = false;
             flushComplete = false;
             mPlayer.pause();
-            getSong(cityUrlFormat, "city");
+            getSong(cityUrlFormat);
 
             //with audio flush and pause check to prevent death spiral
             while ((!parsingComplete) && (!flushComplete) && (!pauseEventComplete));
-
-            if (trackUri == null){
-                parsingComplete = false;
-                getSong(stateUrlFormat, "state");
-                while (!parsingComplete);
-            }
 
             mArtistField.setText(artistName);
             mTrackField.setText(trackName);

@@ -3,16 +3,8 @@ package co.hollowlog.localrhythm;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.location.Address;
-import android.location.Geocoder;
-import android.location.Location;
 import android.location.LocationManager;
-import android.util.Log;
 import android.widget.Toast;
-
-import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
 
 /**
  * © 2014 michael david holloway
