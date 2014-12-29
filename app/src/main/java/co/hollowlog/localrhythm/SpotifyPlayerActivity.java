@@ -48,7 +48,6 @@ public class SpotifyPlayerActivity extends Activity
     private static final String SPOTIFY_CLIENT_ID = "MY-CLIENT-ID";
     private static final String authUrl = "MY-AUTH-URL";
 
-
     private Player mPlayer;
     private Config playerConfig;
     private Spotify spotify;
@@ -83,7 +82,6 @@ public class SpotifyPlayerActivity extends Activity
     private String cityUrlFormat;
     private String accessToken = "";
     private String uid;
-    private String deleteResult;
     private Uri uri;
     private Uri artistInfoUri;
 
@@ -96,9 +94,15 @@ public class SpotifyPlayerActivity extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_player);
 
+        LandingActivity.la.finish();
+
         uid = Settings.Secure.getString(this.getContentResolver(), Settings.Secure.ANDROID_ID);
         city = getIntent().getStringExtra("city");
-        cityUrlFormat = city.replace(" ", "%20");
+        Log.d("test", "value of city: " + city);
+        if (city == null) {
+            finish();
+        } else
+            cityUrlFormat = city.replace(" ", "%20");
 
         playPauseButton = (ToggleButton) findViewById(R.id.playPauseButton);
         nextButton = (Button) findViewById(R.id.nextButton);
@@ -188,21 +192,6 @@ public class SpotifyPlayerActivity extends Activity
             }
         });
 
-         afChangeListener = new AudioManager.OnAudioFocusChangeListener() {
-            public void onAudioFocusChange(int focusChange) {
-                if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                    mPlayer.pause();
-                } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-                    mPlayer.resume();
-                }
-            }
-        };
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-
         refreshTokenCheckComplete = false;
         haveRefreshToken = false;
 
@@ -217,6 +206,7 @@ public class SpotifyPlayerActivity extends Activity
         checkRefreshToken();
 
         while (!refreshTokenCheckComplete);
+        Log.d("auth", "value of accessToken:" + accessToken);
 
         if (accessToken.equals("nil") || accessToken.equals("")) {  // no valid refresh token, user must authorize
             haveRefreshToken = false;
@@ -227,7 +217,6 @@ public class SpotifyPlayerActivity extends Activity
             haveRefreshToken = true;
             getPlayer(accessToken);
         }
-
     }
 
     private void checkRefreshToken(){
@@ -253,6 +242,8 @@ public class SpotifyPlayerActivity extends Activity
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+
+        Log.d("Test", "onNewIntent reached, accessToken = " + accessToken + ", haveRefreshToken = " + haveRefreshToken);
         final Uri authResponse = intent.getData();
         if (!haveRefreshToken) {
             final String authCode = authResponse.getQueryParameter("code");
@@ -286,6 +277,16 @@ public class SpotifyPlayerActivity extends Activity
 
             @Override
             public void onInitialized() {
+                afChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+                    public void onAudioFocusChange(int focusChange) {
+                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                           mPlayer.pause();
+                        } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                            mPlayer.resume();
+                        }
+                    }
+                };
+
                 mPlayer.addConnectionStateCallback(SpotifyPlayerActivity.this);
                 mPlayer.addPlayerNotificationCallback(SpotifyPlayerActivity.this);
                 playPauseButton.setEnabled(true);
@@ -297,31 +298,13 @@ public class SpotifyPlayerActivity extends Activity
             public void onError(Throwable throwable) {
                 Log.e("SpotifyPlayerActivity", "Could not initialize player: "
                         + throwable.getMessage());
-
-                Thread deleteThread = new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            URLConnection deleteConnection = new URL
-                                    ("https://hollowlog.co:8443/delete?uid=" + uid).openConnection();
-                            ((HttpsURLConnection)deleteConnection).setSSLSocketFactory(hollowlogFactory);
-                            InputStream dels = deleteConnection.getInputStream();
-                            deleteResult = convertStreamToString(dels);
-                            if (deleteResult == "OK")
-                                Log.d("Auth", "Old refresh token deleted; getting new tokens.");
-                        } catch (Exception xe) {
-                            xe.printStackTrace();
-                        }
-                    }
-                });
-                deleteThread.start();
-
                 uri = Uri.parse(authUrl);
                 Intent launchAuthWindow = new Intent("android.intent.action.VIEW", uri);
                 SpotifyPlayerActivity.this.startActivity(launchAuthWindow);
-                Toast.makeText(SpotifyPlayerActivity.this, "Error initializing player...",
-                        Toast.LENGTH_SHORT).show();
-                haveRefreshToken = false;
+                Toast.makeText(SpotifyPlayerActivity.this,
+                      "Error initializing player: Spotify Premium account required.",
+                            Toast.LENGTH_SHORT).show();
+                finish();
             }
         });
     }

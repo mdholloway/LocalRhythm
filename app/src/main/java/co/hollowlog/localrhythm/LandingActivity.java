@@ -25,8 +25,8 @@ import java.util.Locale;
  */
 public class LandingActivity extends Activity {
 
+    public static Activity la;
     private LocationAgent mLocationAgent;
-
     private List<Address> mAddresses;
     public double mCurrentLat;
     public double mCurrentLong;
@@ -74,6 +74,7 @@ public class LandingActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_landing);
+        la = this;
     }
 
     @Override
