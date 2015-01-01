@@ -98,7 +98,6 @@ public class SpotifyPlayerActivity extends Activity
 
         uid = Settings.Secure.getString(this.getContentResolver(), Settings.Secure.ANDROID_ID);
         city = getIntent().getStringExtra("city");
-        Log.d("test", "value of city: " + city);
         if (city == null) {
             finish();
         } else
@@ -206,7 +205,6 @@ public class SpotifyPlayerActivity extends Activity
         checkRefreshToken();
 
         while (!refreshTokenCheckComplete);
-        Log.d("auth", "value of accessToken:" + accessToken);
 
         if (accessToken.equals("nil") || accessToken.equals("")) {  // no valid refresh token, user must authorize
             haveRefreshToken = false;
@@ -243,7 +241,6 @@ public class SpotifyPlayerActivity extends Activity
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
 
-        Log.d("Test", "onNewIntent reached, accessToken = " + accessToken + ", haveRefreshToken = " + haveRefreshToken);
         final Uri authResponse = intent.getData();
         if (!haveRefreshToken) {
             final String authCode = authResponse.getQueryParameter("code");
@@ -310,101 +307,92 @@ public class SpotifyPlayerActivity extends Activity
     }
 
     private void getSong(String loc) {
-
         artistSpotifyId = "";
         trackUri = "";
-
-        final String urlBuilder = "https://developer.echonest.com/api/v4/artist/search?api_key="
+        final String echoNestUrl = "https://developer.echonest.com/api/v4/artist/search?api_key="
             + ECHONEST_API_KEY
                 + "&format=json&artist_location=city:" + loc + "&bucket=id:spotify&results=40";
 
         Thread thread = new Thread(new Runnable(){
             @Override
             public void run() {
-                try {
-                    URL url = new URL(urlBuilder);
-                    URLConnection conn = url.openConnection();
-                    conn.setReadTimeout(10000);
-                    conn.setConnectTimeout(15000);
-                    conn.setDoInput(true);
-                    conn.connect();
-                    InputStream echoNestStream = conn.getInputStream();
-                    String data = convertStreamToString(echoNestStream);
-                    try {
-                        JSONObject reader = new JSONObject(data);
-                        JSONObject response  = reader.getJSONObject("response");
-                        artists = response.getJSONArray("artists");
-
-                        if (artists.length() > 0) {
-                            //get random artist from array
-                            int idx = new Random().nextInt(artists.length());
-                            JSONObject selectedArtist = (artists.getJSONObject(idx));
-                            artistName = selectedArtist.getString("name");
-                            artistNameUrlFormat = artistName.replace(" ", "%20");
-
-                            JSONArray foreignIds = selectedArtist.getJSONArray("foreign_ids");
-                            JSONObject foreignId = foreignIds.getJSONObject(0);
-                            String str = foreignId.getString("foreign_id");
-                            artistSpotifyId = str.split(":")[2];
-                            artistInfoUri = Uri.parse("https://en.wikipedia.org/wiki/" +
-                                    artistNameUrlFormat);
-                        } else
-                            noArtistsFound = true;
-
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    echoNestStream.close();
-
-                    if (artists.length() > 0) {
-                        final String urlBuilder2 = "https://api.spotify.com/v1/artists/"
-                                + artistSpotifyId + "/top-tracks?country=US";
-                        try {
-                            URL url2 = new URL(urlBuilder2);
-                            URLConnection conn2 = url2.openConnection();
-                            conn2.setReadTimeout(10000);
-                            conn2.setConnectTimeout(15000);
-                            conn2.setDoInput(true);
-                            conn2.connect();
-                            InputStream spotifyStream = conn2.getInputStream();
-                            String data2 = convertStreamToString(spotifyStream);
-                            try {
-                                JSONObject reader = new JSONObject(data2);
-                                JSONArray tracks = reader.getJSONArray("tracks");
-
-                                //get random track from array
-                                if (tracks.length() > 0) {
-                                    int idx2 = new Random().nextInt(tracks.length());
-                                    JSONObject selectedTrack = (tracks.getJSONObject(idx2));
-
-                                    trackName = selectedTrack.getString("name");
-                                    trackUri = selectedTrack.getString("uri");
-
-                                    JSONObject album = selectedTrack.getJSONObject("album");
-                                    JSONArray images = album.getJSONArray("images");
-                                    JSONObject bestImage = images.getJSONObject(0);
-                                    URL imageUrl = new URL(bestImage.getString("url"));
-                                    imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
-                                            getInputStream());
-                                    haveSong = true;
-                                }
-
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                            spotifyStream.close();
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-
-                } catch (Exception e) {
-                    e.printStackTrace();
+                callApi("echonest", echoNestUrl);
+                if (!(artistSpotifyId.equals(""))) {
+                    String spotifyUrl = "https://api.spotify.com/v1/artists/" + artistSpotifyId +
+                            "/top-tracks?country=US";
+                    callApi("spotify", spotifyUrl);
                 }
                 parsingComplete = true;
             }
         });
         thread.start();
+    }
+
+    private void callApi(String service, String urlString){
+        try {
+            URL url = new URL(urlString);
+            URLConnection urlConn = url.openConnection();
+            urlConn.setReadTimeout(10000);
+            urlConn.setConnectTimeout(15000);
+            urlConn.setDoInput(true);
+            urlConn.connect();
+            InputStream responseStream = urlConn.getInputStream();
+            String responseString = convertStreamToString(responseStream);
+            JSONObject responseJson = new JSONObject(responseString);
+            if (service.equals("spotify"))
+                parseSpotifyJSON(responseJson);
+            else if (service.equals("echonest"))
+                parseEchoNestJSON(responseJson);
+            responseStream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void parseSpotifyJSON(JSONObject spotifyResponse){
+        try {
+            JSONArray tracks = spotifyResponse.getJSONArray("tracks");
+            if (tracks.length() > 0) {
+                //get random track from array of spotify "top tracks" for the artist
+                int idx2 = new Random().nextInt(tracks.length());
+                JSONObject selectedTrack = (tracks.getJSONObject(idx2));
+                //get track info
+                trackName = selectedTrack.getString("name");
+                trackUri = selectedTrack.getString("uri");
+                JSONObject album = selectedTrack.getJSONObject("album");
+                JSONArray images = album.getJSONArray("images");
+                JSONObject bestImage = images.getJSONObject(0);
+                URL imageUrl = new URL(bestImage.getString("url"));
+                imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
+                        getInputStream());
+                haveSong = true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void parseEchoNestJSON(JSONObject echoNestResponse){
+        try {
+            JSONObject response  = echoNestResponse.getJSONObject("response");
+            artists = response.getJSONArray("artists");
+            if (artists.length() > 0) {
+                //get random artist from array
+                int idx = new Random().nextInt(artists.length());
+                JSONObject selectedArtist = (artists.getJSONObject(idx));
+                //get artist info
+                artistName = selectedArtist.getString("name");
+                artistNameUrlFormat = artistName.replace(" ", "%20");
+                JSONArray foreignIds = selectedArtist.getJSONArray("foreign_ids");
+                JSONObject foreignId = foreignIds.getJSONObject(0);
+                String str = foreignId.getString("foreign_id");
+                artistSpotifyId = str.split(":")[2];
+                artistInfoUri = Uri.parse("https://en.wikipedia.org/wiki/" + artistNameUrlFormat);
+            } else
+                noArtistsFound = true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     static String convertStreamToString(java.io.InputStream is) {
@@ -413,7 +401,8 @@ public class SpotifyPlayerActivity extends Activity
     }
 
     public static void trustHollowLog() {
-        // Don't throw certificate chain validation exceptions for my own site with unrecognized issuing CA (Gandi.net)
+        /* Don't throw certificate chain validation exceptions for my own site with unrecognized
+           issuing CA (Gandi.net) */
         TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
             @Override
             public void checkClientTrusted(java.security.cert.X509Certificate[] chain,
@@ -436,8 +425,6 @@ public class SpotifyPlayerActivity extends Activity
             e.printStackTrace();
         }
     }
-
-
 
     @Override
     public void onLoggedIn() {
