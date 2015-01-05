@@ -48,23 +48,6 @@ public class SpotifyPlayerActivity extends Activity
     private static final String SPOTIFY_CLIENT_ID = "MY-CLIENT-ID";
     private static final String authUrl = "MY-AUTH-URL";
 
-    private Player mPlayer;
-    private Config playerConfig;
-    private Spotify spotify;
-    private ToggleButton playPauseButton;
-    private Button nextButton;
-    private PlayerState playerState;
-    private TextView mArtistField;
-    private TextView mTrackField;
-    private TextView mLocationField;
-    private ImageView mImageView;
-    private ImageView artistInfoButton;
-    private static SSLSocketFactory hollowlogFactory;
-    private JSONArray artists;
-    private AudioManager am;
-    private AudioManager.OnAudioFocusChangeListener afChangeListener;
-
-    private Bitmap imgDisplayBmp;
     private boolean paused = false;
     private boolean playing = false;
     private boolean flushComplete = false;
@@ -72,7 +55,7 @@ public class SpotifyPlayerActivity extends Activity
     private boolean haveRefreshToken = false;
     private boolean haveSong = false;
     private boolean noArtistsFound = false;
-    private ProgressWheel wheel;
+
     private String artistName;
     private String artistNameUrlFormat;
     private String artistSpotifyId = "";
@@ -82,12 +65,32 @@ public class SpotifyPlayerActivity extends Activity
     private String cityUrlFormat;
     private String accessToken = "";
     private String uid;
+
+    private Player mPlayer;
+    private Config playerConfig;
+    private Spotify spotify;
+    private AudioManager am;
+    private AudioManager.OnAudioFocusChangeListener afChangeListener;
+
+    private ToggleButton playPauseButton;
+    private Button nextButton;
+    private TextView mArtistField;
+    private TextView mTrackField;
+    private TextView mLocationField;
+    private ImageView mImageView;
+    private ImageView artistInfoButton;
+    private ProgressWheel wheel;
+
+    private Bitmap imgDisplayBmp;
+    private JSONArray artists;
     private Uri uri;
     private Uri artistInfoUri;
 
-    public volatile boolean parsingComplete = false;
-    public volatile boolean refreshTokenCheckComplete = false;
-    public volatile boolean callbackComplete = false;
+    private static SSLSocketFactory hollowlogFactory;
+
+    private volatile boolean parsingComplete = false;
+    private volatile boolean refreshTokenCheckComplete = false;
+    private volatile boolean callbackComplete = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -459,7 +462,7 @@ public class SpotifyPlayerActivity extends Activity
     @Override
     public void onPlaybackEvent(EventType eventType, PlayerState ps) {
         Log.d("MainActivity", "Playback event received: " + eventType.name());
-        playerState = ps;
+
         if (eventType.name().equals("END_OF_CONTEXT")) {
             pauseEventComplete = false;
             parsingComplete = false;

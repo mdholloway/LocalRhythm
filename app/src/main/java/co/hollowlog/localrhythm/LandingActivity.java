@@ -27,14 +27,14 @@ import java.util.Locale;
 public class LandingActivity extends Activity {
 
     public static Activity la;
-    protected LocationManager mLocationManager;
+    private LocationManager mLocationManager;
     private List<Address> mAddresses;
-    public double mCurrentLat;
-    public double mCurrentLong;
-    public String mStreetAddress;
-    public String mCityStateZip;
-    public String mCityName;
-    public static final String ACTION_LOCATION = "co.hollowlog.localrhythm.ACTION_LOCATION";
+    private double mCurrentLat;
+    private double mCurrentLong;
+    private String mStreetAddress;
+    private String mCityStateZip;
+    private String mCityName;
+    private static final String ACTION_LOCATION = "co.hollowlog.localrhythm.ACTION_LOCATION";
 
     private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
 
