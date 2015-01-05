@@ -79,7 +79,6 @@ public class SpotifyPlayerActivity extends Activity
     private TextView mLocationField;
     private ImageView mImageView;
     private ImageView artistInfoButton;
-    private ProgressWheel wheel;
 
     private Bitmap imgDisplayBmp;
     private JSONArray artists;
@@ -111,12 +110,9 @@ public class SpotifyPlayerActivity extends Activity
         mImageView = (ImageView) findViewById(R.id.album_art);
         mArtistField = (TextView) findViewById(R.id.artist_field);
         mTrackField = (TextView) findViewById(R.id.track_field);
-        wheel = (ProgressWheel) findViewById(R.id.progress_wheel);
         artistInfoButton = (ImageView) findViewById(R.id.artist_info);
         mLocationField = (TextView) findViewById(R.id.location_field);
         mLocationField.setText(city);
-
-        wheel.spin();
 
         playPauseButton.setOnClickListener(new View.OnClickListener(){
             @Override
@@ -132,7 +128,6 @@ public class SpotifyPlayerActivity extends Activity
                     paused = true;
                     mPlayer.pause();
                 } else {
-                    wheel.spin();
                     parsingComplete = false;
                     getSong(cityUrlFormat);
 
@@ -146,7 +141,6 @@ public class SpotifyPlayerActivity extends Activity
                         mArtistField.setText(artistName);
                         mTrackField.setText(trackName);
                         mImageView.setImageBitmap(imgDisplayBmp);
-                        wheel.stopSpinning();
                         mPlayer.play(trackUri);
                         playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
 
@@ -173,7 +167,6 @@ public class SpotifyPlayerActivity extends Activity
                 flushComplete = false;
                 pauseEventComplete = false;
                 mPlayer.pause();
-                wheel.spin();
                 getSong(cityUrlFormat);
 
                 //with audio flush and pause check to prevent death spiral
@@ -188,7 +181,6 @@ public class SpotifyPlayerActivity extends Activity
                 mArtistField.setText(artistName);
                 mTrackField.setText(trackName);
                 mImageView.setImageBitmap(imgDisplayBmp);
-                wheel.stopSpinning();
                 mPlayer.play(trackUri);
                 playing = true;
             }
@@ -291,7 +283,6 @@ public class SpotifyPlayerActivity extends Activity
                 mPlayer.addPlayerNotificationCallback(SpotifyPlayerActivity.this);
                 playPauseButton.setEnabled(true);
                 nextButton.setEnabled(true);
-                wheel.stopSpinning();
             }
 
             @Override

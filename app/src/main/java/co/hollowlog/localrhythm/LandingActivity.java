@@ -13,7 +13,6 @@ import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.os.Handler;
 import android.provider.Settings;
 import android.widget.Toast;
 
@@ -34,6 +33,7 @@ public class LandingActivity extends Activity {
     private String mStreetAddress;
     private String mCityStateZip;
     private String mCityName;
+
     private static final String ACTION_LOCATION = "co.hollowlog.localrhythm.ACTION_LOCATION";
 
     private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
@@ -88,6 +88,7 @@ public class LandingActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
+
         mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
         this.registerReceiver(mBroadcastReceiver, new IntentFilter(ACTION_LOCATION));
         boolean gps_enabled = false, network_enabled = false;
@@ -126,14 +127,6 @@ public class LandingActivity extends Activity {
         PendingIntent pi = getLocationPendingIntent(true);
         mLocationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, pi);
         mLocationManager.requestSingleUpdate(LocationManager.NETWORK_PROVIDER, pi);
-
-        final ProgressWheel wheel = (ProgressWheel) findViewById(R.id.progress_wheel);
-        new Handler().postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                wheel.spin();
-            }
-        }, 2000);
     }
 
     @Override
