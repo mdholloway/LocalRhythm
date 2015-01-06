@@ -96,7 +96,7 @@ public class SpotifyPlayerActivity extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_player);
 
-        LandingActivity.la.finish();
+        //LocationSearchActivity.la.finish();
 
         uid = Settings.Secure.getString(this.getContentResolver(), Settings.Secure.ANDROID_ID);
         city = getIntent().getStringExtra("city");
