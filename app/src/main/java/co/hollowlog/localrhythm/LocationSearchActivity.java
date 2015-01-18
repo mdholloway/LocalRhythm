@@ -68,7 +68,7 @@ public class LocationSearchActivity extends Activity {
                     + mCityStateZip, Toast.LENGTH_SHORT).show();
 
             Intent launchPlayer = new Intent(LocationSearchActivity.this,
-                    SpotifyPlayerActivity.class);
+                    PlayerActivity.class);
             launchPlayer.putExtra("city", mCityName);
             startActivity(launchPlayer);
             finish();

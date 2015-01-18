@@ -123,8 +123,7 @@
                 android:layout_marginRight="16dp"
                 android:background="@drawable/ic_media_play"
                 android:textOn=""
-                android:textOff=""
-                android:enabled="false" />
+                android:textOff="" />
 
             <Button
                 android:id="@+id/nextButton"
@@ -132,8 +131,7 @@
                 android:layout_height="72dp"
                 android:layout_marginLeft="16dp"
                 android:layout_marginRight="16dp"
-                android:background="@drawable/ic_media_next"
-                android:enabled="false" />
+                android:background="@drawable/ic_media_next" />
 
         </LinearLayout>
 
