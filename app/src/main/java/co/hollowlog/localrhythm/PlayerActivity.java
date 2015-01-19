@@ -12,7 +12,6 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -76,6 +75,17 @@ public class PlayerActivity extends Activity {
 
     private void getAudioManager() {
         am = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
+
+        afChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+            public void onAudioFocusChange(int focusChange) {
+                if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                    mPlayer.pause();
+                } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                    mPlayer.start();
+                }
+            }
+        };
+
         am.requestAudioFocus(afChangeListener,
                 // Use the music stream.
                 AudioManager.STREAM_MUSIC,
@@ -310,6 +320,12 @@ public class PlayerActivity extends Activity {
         play(trackFile);
         playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
         playing = true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        mPlayer.release();
+        super.onDestroy();
     }
 
 }
