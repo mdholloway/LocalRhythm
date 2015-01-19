@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * © 2014 michael david holloway
+ * © 2015 michael david holloway
  */
 public class LocationSearchActivity extends Activity {
 

@@ -1,7 +1,7 @@
 package co.hollowlog.localrhythm;
 
 /**
- * © 2014 michael david holloway
+ * © 2015 michael david holloway
  */
 import android.app.Activity;
 import android.content.Context;
@@ -36,9 +36,6 @@ public class PlayerActivity extends Activity {
 
     private boolean paused = false;
     private boolean playing = false;
-    private boolean flushComplete = false;
-    private boolean pauseEventComplete = false;
-    private boolean haveSong = false;
     private boolean noArtistsFound = false;
 
     private String artistName;
@@ -61,10 +58,10 @@ public class PlayerActivity extends Activity {
     private TextView mLocationField;
     private ImageView mImageView;
     private ImageView artistInfoButton;
-
     private Bitmap imgDisplayBmp;
     private JSONArray artists;
     private Uri artistInfoUri;
+    private URL imageUrl;
 
     private volatile boolean parsingComplete = false;
     private volatile boolean haveTrackFile = false;
@@ -139,7 +136,7 @@ public class PlayerActivity extends Activity {
                     else {
                         mArtistField.setText(artistName);
                         mTrackField.setText(trackName);
-                        //mImageView.setImageBitmap(imgDisplayBmp);
+                        mImageView.setImageBitmap(imgDisplayBmp);
                         play(trackFile);
                         playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
 
@@ -163,23 +160,15 @@ public class PlayerActivity extends Activity {
             @Override
             public void onClick(View v){
                 parsingComplete = false;
-                flushComplete = false;
-                pauseEventComplete = false;
-                mPlayer.pause();
+                mPlayer.reset();
                 getSong(cityUrlFormat);
 
                 //with audio flush and pause check to prevent death spiral
-                while ((!parsingComplete) && (!flushComplete) && (!pauseEventComplete));
-
-                do {
-                    parsingComplete = false;
-                    getSong(cityUrlFormat);
-                    while (!parsingComplete);
-                } while (!haveSong);
+                while (!parsingComplete);
 
                 mArtistField.setText(artistName);
                 mTrackField.setText(trackName);
-                //mImageView.setImageBitmap(imgDisplayBmp);
+                mImageView.setImageBitmap(imgDisplayBmp);
                 play(trackFile);
                 playing = true;
             }
@@ -188,6 +177,12 @@ public class PlayerActivity extends Activity {
         getAudioManager();
         mPlayer = new MediaPlayer();
         mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+        mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mp) {
+                getNewTrack();
+            }
+        });
     }
 
     private void getSong(String loc) {
@@ -241,7 +236,6 @@ public class PlayerActivity extends Activity {
                 JSONObject selectedArtist = (artists.getJSONObject(idx));
                 //get artist info
                 artistName = selectedArtist.getString("name");
-                Log.d("Echonest parse", "Selected artist: " + artistName);
                 artistNameUrlFormat = artistName.replace(" ", "%20");
                 JSONArray foreignIds = selectedArtist.getJSONArray("foreign_ids");
                 JSONObject foreignId = foreignIds.getJSONObject(0);
@@ -264,17 +258,13 @@ public class PlayerActivity extends Activity {
                 JSONObject selectedTrack = (dataset.getJSONObject(idx2));
                 //get track info
                 trackName = selectedTrack.getString("track_title");
-                Log.d("FMA parse", "Selected track: " + trackName);
                 trackUrl = selectedTrack.getString("track_url");
-                Log.d("FMA parse", "Track url: " + trackUrl);
                 haveTrackFile = false;
                 getTrackFile();
                 while(!haveTrackFile);
-                Log.d("FMA parse", "Track file: " + trackFile);
-                //trackImageUrl = selectedTrack.getString("track_image_file");
-                //imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
-                //        getInputStream());
-                haveSong = true;
+                imageUrl = new URL(selectedTrack.getString("track_image_file"));
+                imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
+                        getInputStream());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -291,7 +281,7 @@ public class PlayerActivity extends Activity {
                     String pageHtml = convertStreamToString(ips);
                     int begin = pageHtml.indexOf("<a href=\"http://freemusicarchive.org/music/download/");
                     int end = pageHtml.indexOf("\"", begin + 10);
-                    trackFile = pageHtml.substring(begin +9, end);
+                    trackFile = pageHtml.substring(begin + 9, end);
                     haveTrackFile = true;
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -305,30 +295,21 @@ public class PlayerActivity extends Activity {
         java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
         return s.hasNext() ? s.next() : "";
     }
-/*
-    @Override
-    public void onPlaybackEvent(EventType eventType, PlayerState ps) {
-        Log.d("MainActivity", "Playback event received: " + eventType.name());
 
-        if (eventType.name().equals("END_OF_CONTEXT")) {
-            pauseEventComplete = false;
-            parsingComplete = false;
-            flushComplete = false;
-            mPlayer.pause();
-            getSong(cityUrlFormat);
+    private void getNewTrack(){
+        parsingComplete = false;
+        mPlayer.reset();
+        getSong(cityUrlFormat);
 
-            //with audio flush and pause check to prevent death spiral
-            while ((!parsingComplete) && (!flushComplete) && (!pauseEventComplete));
+        //pause execution until JSON is parsed & needed values extracted
+        while (!parsingComplete);
 
-            mArtistField.setText(artistName);
-            mTrackField.setText(trackName);
-            mImageView.setImageBitmap(imgDisplayBmp);
-            mPlayer.play(trackUri);
-        }
-        if (eventType.name().equals("PAUSE"))
-            pauseEventComplete = true;
-        if (eventType.name().equals("AUDIO_FLUSH"))
-            flushComplete = true;
-    } */
+        mArtistField.setText(artistName);
+        mTrackField.setText(trackName);
+        mImageView.setImageBitmap(imgDisplayBmp);
+        play(trackFile);
+        playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
+        playing = true;
+    }
 
 }
