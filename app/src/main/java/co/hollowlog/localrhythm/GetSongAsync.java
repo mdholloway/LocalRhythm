@@ -20,8 +20,8 @@ import java.util.Random;
  */
 public class GetSongAsync extends AsyncTask<String, Void, Void> {
 
-    private static final String ECHONEST_API_KEY = "MY-API-KEY";
-    private static final String FMA_API_KEY = "ANOTHER-API-KEY";
+    private static final String ECHONEST_API_KEY = "YBQ15XC2DALJZWBUC";
+    private static final String FMA_API_KEY = "VR0OE2AKNKZSMNYX";
 
     protected String artistFmaId;
     protected String artistNameUrlFormat;
