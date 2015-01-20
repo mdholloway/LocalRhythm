@@ -4,8 +4,11 @@
     <string name="app_name">LocalRhythm</string>
     <string name="app_desc1">Location-based</string>
     <string name="app_desc2">streaming music player</string>
-    <string name="echonestlogo">Echo Nest logo</string>
-    <string name="spotifylogo">Spotify logo</string>
+    <string name="echonestlogo">The Echo Nest logo</string>
+    <string name="fmalogo">Free Music Archive logo</string>
     <string name="log_in_to_spotify">Log into Spotify</string>
+    <string name="copyright_notice">© 2015 michael david holloway</string>
+    <string name="about">About</string>
+    <string name="poweredby">Powered by:</string>
 
 </resources>

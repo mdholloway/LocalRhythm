@@ -4,14 +4,27 @@ package co.hollowlog.localrhythm;
  * © 2015 michael david holloway
  */
 import android.app.Activity;
+import android.app.AlarmManager;
+import android.app.AlertDialog;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.content.IntentFilter;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -19,58 +32,236 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.Random;
+import java.util.List;
+import java.util.Locale;
 
 public class PlayerActivity extends Activity {
 
-    private static final String ECHONEST_API_KEY = "MY-API-KEY";
-    private static final String FMA_API_KEY = "ANOTHER-API-KEY";
+    private static final String ACTION_LOCATION = "co.hollowlog.localrhythm.ACTION_LOCATION";
 
-    private boolean paused = false;
-    private boolean playing = false;
-    private boolean noArtistsFound = false;
+    protected static boolean paused = false;
+    protected static boolean playing = false;
+    protected static boolean noArtistsFound = false;
 
-    private String artistName;
-    private String artistNameUrlFormat;
-    private String artistFmaId;
-    private String trackName;
-    private String trackUrl;
-    private String trackFile;
-    private String city;
+    private double mCurrentLat;
+    private double mCurrentLong;
+
+    private String mCityStateZip;
+    private String mCityName;
     private String cityUrlFormat;
 
-    private MediaPlayer mPlayer;
+    private static MediaPlayer mPlayer;
     private AudioManager am;
     private AudioManager.OnAudioFocusChangeListener afChangeListener;
 
-    private ToggleButton playPauseButton;
+    protected static ToggleButton playPauseButton;
     private Button nextButton;
-    private TextView mArtistField;
-    private TextView mTrackField;
+    protected static TextView mArtistField;
+    protected static TextView mTrackField;
     private TextView mLocationField;
-    private ImageView mImageView;
+    protected static ImageView mImageView;
     private ImageView artistInfoButton;
-    private Bitmap imgDisplayBmp;
-    private JSONArray artists;
-    private Uri artistInfoUri;
-    private URL imageUrl;
+    protected static Uri artistInfoUri;
 
-    private volatile boolean parsingComplete = false;
-    private volatile boolean haveTrackFile = false;
+    private LocationManager mLocationManager;
+    private LocationListener locationListener;
+    private List<Address> mAddresses;
 
-    private void getLocation() {
-        city = getIntent().getStringExtra("city");
-        if (city == null) {
-            finish();
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_player);
+
+        playPauseButton = (ToggleButton) findViewById(R.id.playPauseButton);
+        nextButton = (Button) findViewById(R.id.nextButton);
+        mImageView = (ImageView) findViewById(R.id.album_art);
+        mArtistField = (TextView) findViewById(R.id.artist_field);
+        mTrackField = (TextView) findViewById(R.id.track_field);
+        artistInfoButton = (ImageView) findViewById(R.id.artist_info);
+        mLocationField = (TextView) findViewById(R.id.location_field);
+
+        playPauseButton.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v) {
+                if (paused) {
+                    playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
+                    paused = false;
+                    playing = true;
+                    mPlayer.start();
+                } else if (playing) {
+                    playPauseButton.setBackgroundResource(R.drawable.ic_media_play);
+                    playing = false;
+                    paused = true;
+                    mPlayer.pause();
+                } else {
+                    new GetSongAsync(PlayerActivity.this).execute(cityUrlFormat);
+
+                    if (noArtistsFound)
+                        Toast.makeText(PlayerActivity.this, "No artists found!",
+                                Toast.LENGTH_SHORT).show();
+                    else {
+                        artistInfoButton.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                Intent artistBrowser = new Intent("android.intent.action.VIEW",
+                                        artistInfoUri);
+                                PlayerActivity.this.startActivity(artistBrowser);
+                            }
+                        });
+                        artistInfoButton.setEnabled(true);
+                    }
+                }
+            }
+        });
+
+        nextButton.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+                mPlayer.reset();
+                new GetSongAsync(PlayerActivity.this).execute(cityUrlFormat);
+            }
+        });
+
+        getAudioManager();
+        mPlayer = new MediaPlayer();
+        mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+        mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mp) {
+                getNewTrack();
+            }
+        });
+
+        this.registerReceiver(mBroadcastReceiver, new IntentFilter(ACTION_LOCATION));
+        mLocationManager = (LocationManager)this.getSystemService(Context.LOCATION_SERVICE);
+        boolean gps_enabled = false, network_enabled = false;
+
+        //check to see if location providers are enabled
+        gps_enabled = mLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+        network_enabled = mLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+
+        // prompt user to enable location provider(s) if disabled
+        if(!gps_enabled && !network_enabled){
+            AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+            dialog.setMessage("LocalRhythm requires access to your location. " +
+                    "Open settings now to enable?");
+            // if yes, go to settings
+            dialog.setPositiveButton("Open",
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                            Intent myIntent = new Intent(Settings.ACTION_SETTINGS);
+                            startActivity(myIntent);
+                        }
+                    });
+            // quit if user declines to enable a location provider
+            dialog.setNegativeButton("Cancel",
+                    new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface paramDialogInterface, int paramInt) {
+                            finish();
+                        }
+                    });
+            dialog.show();
+        } else {
+            // Iterate through all the providers on the system, keeping
+            // note of the most accurate result within the acceptable time limit.
+            // If no result is found within maxTime, return the newest Location.
+            List<String> matchingProviders = mLocationManager.getAllProviders();
+            Location bestResult = null;
+            float bestAccuracy = Float.MAX_VALUE;
+            long bestTime = Long.MIN_VALUE;
+            long minTime = System.currentTimeMillis() - AlarmManager.INTERVAL_FIFTEEN_MINUTES;
+
+            for (String provider : matchingProviders) {
+                Location location = mLocationManager.getLastKnownLocation(provider);
+                if (location != null) {
+                    float storedLocAccuracy = location.getAccuracy();
+                    long storedLocTime = location.getTime();
+
+                    if ((storedLocTime > minTime && storedLocAccuracy < bestAccuracy)) {
+                        bestResult = location;
+                        bestAccuracy = storedLocAccuracy;
+                        bestTime = storedLocTime;
+                    } else if (storedLocTime < minTime && bestAccuracy == Float.MAX_VALUE && storedLocTime > bestTime) {
+                        bestResult = location;
+                        bestTime = storedLocTime;
+                    }
+                }
+            }
+
+            if (bestResult != null && (!(locationListener != null && (bestTime < minTime || bestAccuracy > 1000)))) {
+                parseLocData(bestResult);
+            } else {
+                PendingIntent pi = getLocationPendingIntent(true);
+                mLocationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, pi);
+                mLocationManager.requestSingleUpdate(LocationManager.NETWORK_PROVIDER, pi);
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        mPlayer.release();
+        this.unregisterReceiver(mBroadcastReceiver);
+        super.onDestroy();
+    }
+
+    private void getNewTrack(){
+        mPlayer.reset();
+        new GetSongAsync(this).execute(cityUrlFormat);
+    }
+
+    protected static void play(String url) {
+        try {
+            mPlayer.setDataSource(url);
+            mPlayer.prepare(); // might take long! (for buffering, etc)
+            mPlayer.start();
+            playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
+            playing = true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private PendingIntent getLocationPendingIntent(boolean shouldCreate){
+        Intent broadcast = new Intent(ACTION_LOCATION);
+        int flags = shouldCreate ? 0 : PendingIntent.FLAG_NO_CREATE;
+        return PendingIntent.getBroadcast(this, 0, broadcast, flags);
+    }
+
+    private BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent){
+            Location loc = intent.getParcelableExtra(LocationManager.KEY_LOCATION_CHANGED);
+            if (loc != null){
+                parseLocData(loc);
+            }
+        }
+    };
+
+    private void parseLocData(Location loc){
+        mCurrentLat = loc.getLatitude();
+        mCurrentLong = loc.getLongitude();
+
+        Geocoder geocoder = new Geocoder(this, Locale.getDefault());
+        try {
+            mAddresses = geocoder.getFromLocation(mCurrentLat, mCurrentLong, 1);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (mAddresses != null) {
+            //mStreetAddress = mAddresses.get(0).getAddressLine(0);
+            mCityStateZip = mAddresses.get(0).getAddressLine(1);
+            mCityName = mCityStateZip.split(",")[0];
+            mLocationField.setText(mCityName);
+            cityUrlFormat = mCityName.replace(" ", "%20");
+
+            Toast.makeText(this, "Found location: " + mCityStateZip, Toast.LENGTH_SHORT).show();
         } else
-            cityUrlFormat = city.replace(" ", "%20");
+            Toast.makeText(PlayerActivity.this, "Error finding location...",
+                    Toast.LENGTH_SHORT).show();
     }
 
     private void getAudioManager() {
@@ -93,239 +284,22 @@ public class PlayerActivity extends Activity {
                 AudioManager.AUDIOFOCUS_GAIN);
     }
 
-    private void play(String url) {
-        try {
-            mPlayer.setDataSource(url);
-            mPlayer.prepare(); // might take long! (for buffering, etc)
-            mPlayer.start();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.options_menu, menu);
+        return true;
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_player);
-
-        LocationSearchActivity.la.finish();
-        getLocation();
-
-        playPauseButton = (ToggleButton) findViewById(R.id.playPauseButton);
-        nextButton = (Button) findViewById(R.id.nextButton);
-        mImageView = (ImageView) findViewById(R.id.album_art);
-        mArtistField = (TextView) findViewById(R.id.artist_field);
-        mTrackField = (TextView) findViewById(R.id.track_field);
-        artistInfoButton = (ImageView) findViewById(R.id.artist_info);
-        mLocationField = (TextView) findViewById(R.id.location_field);
-        mLocationField.setText(city);
-
-        playPauseButton.setOnClickListener(new View.OnClickListener(){
-            @Override
-            public void onClick(View v) {
-                if (paused) {
-                    playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
-                    paused = false;
-                    playing = true;
-                    mPlayer.start();
-                } else if (playing) {
-                    playPauseButton.setBackgroundResource(R.drawable.ic_media_play);
-                    playing = false;
-                    paused = true;
-                    mPlayer.pause();
-                } else {
-                    parsingComplete = false;
-                    getSong(cityUrlFormat);
-
-                    //pause execution until JSON is parsed & needed values extracted
-                    while (!parsingComplete);
-
-                    if (noArtistsFound)
-                        Toast.makeText(PlayerActivity.this, "No artists found!",
-                                Toast.LENGTH_SHORT).show();
-                    else {
-                        mArtistField.setText(artistName);
-                        mTrackField.setText(trackName);
-                        mImageView.setImageBitmap(imgDisplayBmp);
-                        play(trackFile);
-                        playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
-
-                        artistInfoButton.setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View v) {
-                                Intent artistBrowser = new Intent("android.intent.action.VIEW",
-                                        artistInfoUri);
-                                PlayerActivity.this.startActivity(artistBrowser);
-                            }
-                        });
-                        artistInfoButton.setEnabled(true);
-
-                        playing = true;
-                    }
-                }
-            }
-        });
-
-        nextButton.setOnClickListener(new View.OnClickListener(){
-            @Override
-            public void onClick(View v){
-                parsingComplete = false;
-                mPlayer.reset();
-                getSong(cityUrlFormat);
-
-                //with audio flush and pause check to prevent death spiral
-                while (!parsingComplete);
-
-                mArtistField.setText(artistName);
-                mTrackField.setText(trackName);
-                mImageView.setImageBitmap(imgDisplayBmp);
-                play(trackFile);
-                playing = true;
-            }
-        });
-
-        getAudioManager();
-        mPlayer = new MediaPlayer();
-        mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-        mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                getNewTrack();
-            }
-        });
-    }
-
-    private void getSong(String loc) {
-        final String echoNestUrl = "https://developer.echonest.com/api/v4/artist/search?api_key="
-            + ECHONEST_API_KEY
-                + "&format=json&artist_location=city:" + loc + "&bucket=id:fma&results=40";
-
-        Thread thread = new Thread(new Runnable(){
-            @Override
-            public void run() {
-                callApi("echonest", echoNestUrl);
-                if (!(artistFmaId.equals(""))) {
-                    String fmaUrl = "http://freemusicarchive.org/api/get/tracks.json?api_key=" +
-                            FMA_API_KEY + "&artist_id=" + artistFmaId;
-                    callApi("fma", fmaUrl);
-                }
-                parsingComplete = true;
-            }
-        });
-        thread.start();
-    }
-
-    private void callApi(String service, String urlString){
-        try {
-            URL url = new URL(urlString);
-            URLConnection urlConn = url.openConnection();
-            urlConn.setReadTimeout(10000);
-            urlConn.setConnectTimeout(15000);
-            urlConn.setDoInput(true);
-            urlConn.connect();
-            InputStream responseStream = urlConn.getInputStream();
-            String responseString = convertStreamToString(responseStream);
-            JSONObject responseJson = new JSONObject(responseString);
-            if (service.equals("echonest"))
-                parseEchoNestJSON(responseJson);
-            else if (service.equals("fma"))
-                parseFmaJSON(responseJson);
-            responseStream.close();
-        } catch (Exception e) {
-            e.printStackTrace();
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.about:
+                Intent launchPlayer = new Intent(PlayerActivity.this, AboutActivity.class);
+                startActivity(launchPlayer);
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
     }
-
-    private void parseEchoNestJSON(JSONObject echoNestResponse){
-        try {
-            JSONObject response  = echoNestResponse.getJSONObject("response");
-            artists = response.getJSONArray("artists");
-            if (artists.length() > 0) {
-                //get random artist from array
-                int idx = new Random().nextInt(artists.length());
-                JSONObject selectedArtist = (artists.getJSONObject(idx));
-                //get artist info
-                artistName = selectedArtist.getString("name");
-                artistNameUrlFormat = artistName.replace(" ", "%20");
-                JSONArray foreignIds = selectedArtist.getJSONArray("foreign_ids");
-                JSONObject foreignId = foreignIds.getJSONObject(0);
-                String str = foreignId.getString("foreign_id");
-                artistFmaId = str.split(":")[2];
-                artistInfoUri = Uri.parse("https://en.wikipedia.org/wiki/" + artistNameUrlFormat);
-            } else
-                noArtistsFound = true;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void parseFmaJSON(JSONObject fmaResponse){
-        try {
-            JSONArray dataset = fmaResponse.getJSONArray("dataset");
-            if (dataset.length() > 0) {
-                //get random track
-                int idx2 = new Random().nextInt(dataset.length());
-                JSONObject selectedTrack = (dataset.getJSONObject(idx2));
-                //get track info
-                trackName = selectedTrack.getString("track_title");
-                trackUrl = selectedTrack.getString("track_url");
-                haveTrackFile = false;
-                getTrackFile();
-                while(!haveTrackFile);
-                imageUrl = new URL(selectedTrack.getString("track_image_file"));
-                imgDisplayBmp = BitmapFactory.decodeStream(imageUrl.openConnection().
-                        getInputStream());
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void getTrackFile() {
-        Thread getTrackFileThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    URLConnection refreshConnection = new URL(trackUrl).openConnection();
-                    InputStream ips = refreshConnection.getInputStream();
-                    String pageHtml = convertStreamToString(ips);
-                    int begin = pageHtml.indexOf("<a href=\"http://freemusicarchive.org/music/download/");
-                    int end = pageHtml.indexOf("\"", begin + 10);
-                    trackFile = pageHtml.substring(begin + 9, end);
-                    haveTrackFile = true;
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        getTrackFileThread.start();
-    }
-
-    static String convertStreamToString(java.io.InputStream is) {
-        java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
-        return s.hasNext() ? s.next() : "";
-    }
-
-    private void getNewTrack(){
-        parsingComplete = false;
-        mPlayer.reset();
-        getSong(cityUrlFormat);
-
-        //pause execution until JSON is parsed & needed values extracted
-        while (!parsingComplete);
-
-        mArtistField.setText(artistName);
-        mTrackField.setText(trackName);
-        mImageView.setImageBitmap(imgDisplayBmp);
-        play(trackFile);
-        playPauseButton.setBackgroundResource(R.drawable.ic_media_pause);
-        playing = true;
-    }
-
-    @Override
-    protected void onDestroy() {
-        mPlayer.release();
-        super.onDestroy();
-    }
-
 }

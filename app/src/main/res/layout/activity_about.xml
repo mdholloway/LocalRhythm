@@ -9,10 +9,10 @@
 <ImageView
     android:id="@+id/unisphere"
     android:layout_width="196dp"
-    android:layout_height="144dp"
-    android:layout_marginTop="24dp"
-    android:layout_marginBottom="24dp"
+    android:layout_height="108dp"
     android:layout_centerInParent="true"
+    android:layout_marginTop="36dp"
+    android:layout_marginBottom="12dp"
     android:src="@drawable/unisphere_transparent" />
 
 <LinearLayout
@@ -20,12 +20,13 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_above="@id/unisphere"
+    android:gravity="center_horizontal"
     android:layout_centerHorizontal="true" >
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="12dp"
         android:layout_gravity="center_horizontal"
         android:textSize="48sp"
         android:textStyle="bold"
@@ -34,53 +35,57 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
         android:layout_gravity="center_horizontal"
         android:textSize="24sp"
         android:text="@string/app_desc1"/>
 
     <TextView
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
         android:gravity="center_horizontal"
         android:textSize="24sp"
         android:text="@string/app_desc2"/>
 
 </LinearLayout>
 
-<ProgressBar
-    android:id="@+id/progbar"
-    android:layout_below="@id/unisphere"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_centerInParent="true"
-    android:indeterminateOnly="true"
-    style="@android:style/Widget.ProgressBar.Small.Inverse" />
-
 <LinearLayout
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:layout_below="@id/progbar"
+    android:layout_below="@id/unisphere"
     android:orientation="vertical"
+    android:gravity="center_horizontal"
     android:layout_centerHorizontal="true">
 
-    <ImageView
-        android:layout_width="140dp"
-        android:layout_height="33dp"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="12dp"
-        android:layout_gravity="center_horizontal"
-        android:contentDescription="@string/echonestlogo"
-        android:src="@drawable/echonest14033" />
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="-6dp"
+        android:gravity="center_horizontal"
+        android:textSize="12sp"
+        android:text="@string/poweredby"/>
 
     <ImageView
-        android:layout_width="140dp"
-        android:layout_height="33dp"
-        android:layout_margin="12dp"
+        android:layout_width="172dp"
+        android:layout_height="48dp"
         android:layout_gravity="center_horizontal"
-        android:contentDescription="@string/spotifylogo"
-        android:src="@drawable/spotifylogo2013transnew" />
+        android:contentDescription="@string/echonestlogo"
+        android:src="@drawable/echonestnewtrans" />
+
+    <ImageView
+        android:layout_width="172dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center_horizontal"
+        android:contentDescription="@string/fmalogo"
+        android:src="@drawable/fmatrans" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:gravity="center_horizontal"
+        android:textSize="12sp"
+        android:text="@string/copyright_notice"/>
 
 </LinearLayout>
 
