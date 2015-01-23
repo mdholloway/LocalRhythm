@@ -16,12 +16,12 @@ import java.net.URLConnection;
 import java.util.Random;
 
 /**
- * Created by michaeldavidholloway on 1/19/15.
+ * © 2015 michael david holloway
  */
 public class GetSongAsync extends AsyncTask<String, Void, Void> {
 
-    private static final String ECHONEST_API_KEY = "YBQ15XC2DALJZWBUC";
-    private static final String FMA_API_KEY = "VR0OE2AKNKZSMNYX";
+    private static final String ECHONEST_API_KEY = "MY-API-KEY";
+    private static final String FMA_API_KEY = "ANOTHER-API-KEY";
 
     protected String artistFmaId;
     protected String artistNameUrlFormat;
@@ -80,6 +80,7 @@ public class GetSongAsync extends AsyncTask<String, Void, Void> {
             urlConn.setReadTimeout(10000);
             urlConn.setConnectTimeout(15000);
             urlConn.setDoInput(true);
+            urlConn.setUseCaches(true);
             urlConn.connect();
             InputStream responseStream = urlConn.getInputStream();
             String responseString = convertStreamToString(responseStream);

@@ -20,6 +20,7 @@ import android.location.LocationManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.net.http.HttpResponseCache;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Menu;
@@ -32,6 +33,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
@@ -72,6 +74,8 @@ public class PlayerActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_player);
+
+        enableHttpResponseCache();
 
         playPauseButton = (ToggleButton) findViewById(R.id.playPauseButton);
         nextButton = (Button) findViewById(R.id.nextButton);
@@ -202,6 +206,14 @@ public class PlayerActivity extends Activity {
     }
 
     @Override
+    protected void onStop() {
+        super.onStop();
+        HttpResponseCache cache = HttpResponseCache.getInstalled();
+        if (cache != null)
+            cache.flush();
+    }
+
+    @Override
     protected void onDestroy() {
         mPlayer.release();
         this.unregisterReceiver(mBroadcastReceiver);
@@ -211,6 +223,18 @@ public class PlayerActivity extends Activity {
     private void getNewTrack(){
         mPlayer.reset();
         new GetSongAsync(this).execute(cityUrlFormat);
+    }
+
+    private void enableHttpResponseCache() {
+        try {
+            long httpCacheSize = 10 * 1024 * 1024; // 10 MiB
+            File httpCacheDir = new File(getCacheDir(), "http");
+            Class.forName("android.net.http.HttpResponseCache")
+                    .getMethod("install", File.class, long.class)
+                    .invoke(null, httpCacheDir, httpCacheSize);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     protected static void play(String url) {
