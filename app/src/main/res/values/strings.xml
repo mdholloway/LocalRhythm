@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">LocalRhythm</string>
+    <string name="app_name">Shortwave</string>
     <string name="app_desc1">Location-based</string>
     <string name="app_desc2">streaming music player</string>
     <string name="echonestlogo">The Echo Nest logo</string>
